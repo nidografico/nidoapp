@@ -1,0 +1,19 @@
+{
+    "$schema": "../gen/schemas/desktop-schema.json",
+    "identifier": "default",
+    "description": "Ventanas de la app",
+    "windows": [
+        "main",
+        "v-*"
+    ],
+    "remote": {
+        "urls": [
+            "https://nidografico.com/*",
+            "https://*.nidografico.com/*"
+        ]
+    },
+    "permissions": [
+        "core:default",
+        "opener:default"
+    ]
+}
