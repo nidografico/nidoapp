@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Configuración de la app</title>
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; background: #f4f6f8; color: #101828; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; display: grid; place-items: center; padding: 24px; }
+.c { width: min(520px, 100%); background: #fff; border-radius: 18px; padding: 26px; box-shadow: 0 12px 34px rgba(16,24,40,.1); display: grid; gap: 14px; }
+h1 { margin: 0; font-size: 20px; display: flex; align-items: center; gap: 10px; }
+p { margin: 0; color: #475467; font-size: 14px; line-height: 1.5; }
+label { display: grid; gap: 6px; font-size: 13px; font-weight: 600; color: #344054; }
+input { height: 42px; border: 1px solid #d0d5dd; border-radius: 10px; padding: 0 12px; font: inherit; font-size: 15px; width: 100%; }
+.fila { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.check { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.check input { width: 18px; height: 18px; }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; }
+button { border: 1px solid #d0d5dd; background: #fff; border-radius: 10px; padding: 11px 16px; font: inherit; font-weight: 700; cursor: pointer; }
+button.pri { background: #101828; color: #fff; border-color: #101828; }
+.msg { padding: 10px 12px; border-radius: 10px; font-size: 13.5px; }
+.msg.mal { background: #fef3f2; color: #b42318; } .msg.bien { background: #ecfdf3; color: #067647; }
+small { color: #667085; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="c">
+    <h1>⚙️ Configuración de la app</h1>
+    <div id="paso1">
+        <p>Solo para el administrador. Escribe el PIN que se puso al generar la app en el cPanel.</p>
+        <label style="margin-top:12px">PIN<input type="password" id="pin" autocomplete="off" autofocus></label>
+        <div class="btns" style="margin-top:12px"><button type="button" class="pri" id="entrar">Entrar</button><button type="button" id="volver1">Volver</button></div>
+    </div>
+    <div id="paso2" hidden>
+        <p>Estos ajustes se guardan solo en esta computadora. Versión <b id="ver"></b>.</p>
+        <label>Servidor (dirección del panel)<input type="url" id="servidor" placeholder="https://nidografico.com/app/"></label>
+        <small>De fábrica: <span id="original"></span></small>
+        <div class="fila">
+            <label>Ancho de la ventana<input type="number" id="ancho" min="900" step="10"></label>
+            <label>Alto de la ventana<input type="number" id="alto" min="600" step="10"></label>
+        </div>
+        <label class="check"><input type="checkbox" id="maximizada"> Abrir maximizada</label>
+        <div class="btns">
+            <button type="button" class="pri" id="guardar">Guardar y reiniciar</button>
+            <button type="button" id="probar">Probar servidor</button>
+            <button type="button" id="fabrica">Valores de fábrica</button>
+            <button type="button" id="volver2">Volver sin cambios</button>
+        </div>
+    </div>
+    <div class="msg" id="msg" hidden></div>
+</div>
+<script>
+(function () {
+    var invocar = function (c, a) { return window.__TAURI_INTERNALS__.invoke(c, a || {}); };
+    var $ = function (id) { return document.getElementById(id); };
+    var pin = '';
+    function aviso(t, bien) { $('msg').hidden = !t; $('msg').className = 'msg ' + (bien ? 'bien' : 'mal'); $('msg').textContent = t || ''; }
+    function volver() { location.href = 'index.html'; }
+    $('volver1').onclick = volver; $('volver2').onclick = volver;
+    $('pin').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('entrar').click(); });
+    $('entrar').onclick = function () {
+        invocar('verificar_pin', { pin: $('pin').value }).then(function (ok) {
+            if (!ok) { aviso('PIN incorrecto.'); return; }
+            pin = $('pin').value; aviso('');
+            return invocar('leer_config').then(function (c) {
+                $('ver').textContent = c.version || '';
+                $('servidor').value = c.servidor || '';
+                $('original').textContent = c.servidor_original || '—';
+                $('ancho').value = c.ancho || 1280; $('alto').value = c.alto || 800;
+                $('maximizada').checked = !!c.maximizada;
+                $('paso1').hidden = true; $('paso2').hidden = false;
+            });
+        }).catch(function (e) { aviso(String(e)); });
+    };
+    $('probar').onclick = function () {
+        aviso('Probando…', true);
+        fetch($('servidor').value, { mode: 'no-cors', cache: 'no-store' })
+            .then(function () { aviso('El servidor responde.', true); })
+            .catch(function () { aviso('No responde: revisa la dirección o el internet.'); });
+    };
+    $('guardar').onclick = function () {
+        var s = $('servidor').value.trim();
+        if (!/^https?:\/\//i.test(s)) { aviso('La dirección debe empezar con https://'); return; }
+        if (!/\/$/.test(s)) s += '/';
+        invocar('guardar_config', { pin: pin, datos: { servidor: s, ancho: Number($('ancho').value) || 1280, alto: Number($('alto').value) || 800, maximizada: $('maximizada').checked } })
+            .then(function () { aviso('Guardado. Reiniciando…', true); setTimeout(function () { invocar('reiniciar'); }, 600); })
+            .catch(function (e) { aviso(String(e)); });
+    };
+    $('fabrica').onclick = function () {
+        if (!confirm('¿Volver a la configuración con la que se instaló la app?')) return;
+        invocar('restablecer_config', { pin: pin }).then(function () { invocar('reiniciar'); }).catch(function (e) { aviso(String(e)); });
+    };
+})();
+</script>
+</body>
+</html>
