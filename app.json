@@ -1,0 +1,10 @@
+{
+    "nombre": "Nido Gráfico",
+    "servidor": "https://nidografico.com/app/",
+    "pin_hash": "0d256bc1cdc30042c9fb46064a2c3066d065e7fbaacb8ea6dd59e284ae49b45a",
+    "ancho": 1280,
+    "alto": 800,
+    "maximizada": false,
+    "color_fondo": "#06402b",
+    "color_texto": "#ffffff"
+}
