@@ -1,0 +1,61 @@
+# Construye los instaladores de Windows (.exe) y Mac (.dmg) cuando el cPanel lo pide (app/escritorio).
+name: Construir app
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version (ej. 1.0.3)
+        required: true
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version }}
+          name: Version ${{ inputs.version }}
+          body: Instaladores generados desde el cPanel.
+  construir:
+    needs: release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            bundles: nsis
+            target: ''
+            rust_targets: ''
+            archivos: src-tauri/target/release/bundle/nsis/*.exe
+          - os: macos-latest
+            bundles: dmg
+            target: universal-apple-darwin
+            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
+            archivos: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: 'src-tauri -> target'
+      - run: npm install
+      - run: npx tauri icon icono.png
+      - name: Construir
+        shell: bash
+        run: |
+          if [ -n "${{ matrix.target }}" ]; then
+            npx tauri build --bundles ${{ matrix.bundles }} --target ${{ matrix.target }}
+          else
+            npx tauri build --bundles ${{ matrix.bundles }}
+          fi
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version }}
+          files: ${{ matrix.archivos }}
