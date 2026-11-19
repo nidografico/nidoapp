@@ -7,9 +7,15 @@
 //   tamaños de ventana ya preparados, tamaño del contenido (90/100/110 %) y herramientas (recargar, ir al inicio, Descargas,
 //   valores de fábrica). Ya no hay servidor, PIN ni medidas libres: lo guardado en esta computadora solo puede ser
 //   «tamano» y «zoom», y se revisa contra las listas de abajo para que el panel nunca quede en un tamaño que se vea mal.
+// Android (19-nov-2026): el mismo proyecto se construye para Android. Lo de ventanas (tamaños, zoom, varias ventanas,
+// imprimir, Descargas) es solo de computadora: va marcado con #[cfg(desktop)]. En Android hay una sola pantalla que abre el
+// panel; los enlaces de otros sitios van al navegador y los del panel se abren en la misma pantalla.
+#![allow(unused_imports, dead_code)]
 use serde_json::{json, Value};
 use std::{fs, path::PathBuf};
-use tauri::{webview::DownloadEvent, AppHandle, LogicalSize, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+#[cfg(desktop)]
+use tauri::{webview::DownloadEvent, LogicalSize};
 use tauri_plugin_opener::OpenerExt;
 
 const BASE: &str = include_str!("../../app.json");
@@ -31,6 +37,7 @@ fn base() -> Value {
     serde_json::from_str(BASE).unwrap_or_else(|_| json!({}))
 }
 
+#[cfg(desktop)]
 fn ruta_config(app: &AppHandle) -> Option<PathBuf> {
     app.path().app_config_dir().ok().map(|d| d.join("config.json"))
 }
@@ -39,15 +46,18 @@ fn texto(c: &Value, k: &str, def: &str) -> String {
     c.get(k).and_then(|v| v.as_str()).unwrap_or(def).to_string()
 }
 
+#[cfg(desktop)]
 fn tamano_valido(t: &str) -> bool {
     t == "maximizada" || TAMANOS.iter().any(|x| x.0 == t)
 }
 
+#[cfg(desktop)]
 fn zoom_valido(z: f64) -> Option<f64> {
     ZOOMS.iter().map(|x| x.0).find(|v| (v - z).abs() < 0.001)
 }
 
 /// Tamaño de fábrica: el que se eligió al generar la app en el cPanel.
+#[cfg(desktop)]
 fn tamano_fabrica() -> String {
     let b = base();
     let t = texto(&b, "tamano", "");
@@ -63,6 +73,7 @@ fn tamano_fabrica() -> String {
 
 /// Preferencias de esta computadora (tamano y zoom), ya revisadas. Cualquier otra cosa del archivo se ignora
 /// (las versiones viejas guardaban ahí el servidor: ya no se usa).
+#[cfg(desktop)]
 fn preferencias(app: &AppHandle) -> (String, f64) {
     let mut tamano = tamano_fabrica();
     let mut zoom = 1.0;
@@ -82,6 +93,7 @@ fn preferencias(app: &AppHandle) -> (String, f64) {
     (tamano, zoom)
 }
 
+#[cfg(desktop)]
 fn guardar_preferencias(app: &AppHandle, tamano: &str, zoom: f64) -> Result<(), String> {
     let ruta = ruta_config(app).ok_or_else(|| "No se encontró la carpeta de la app".to_string())?;
     if let Some(carpeta) = ruta.parent() {
@@ -92,6 +104,7 @@ fn guardar_preferencias(app: &AppHandle, tamano: &str, zoom: f64) -> Result<(), 
 }
 
 /// Pantalla en puntos lógicos (ancho, alto).
+#[cfg(desktop)]
 fn pantalla_app(app: &AppHandle) -> Option<(f64, f64)> {
     app.primary_monitor().ok().flatten().map(|m| {
         let s = m.size().to_logical::<f64>(m.scale_factor());
@@ -99,6 +112,7 @@ fn pantalla_app(app: &AppHandle) -> Option<(f64, f64)> {
     })
 }
 
+#[cfg(desktop)]
 fn pantalla_ventana(w: &WebviewWindow) -> Option<(f64, f64)> {
     w.current_monitor()
         .ok()
@@ -111,6 +125,7 @@ fn pantalla_ventana(w: &WebviewWindow) -> Option<(f64, f64)> {
 }
 
 /// ¿Cabe la ventana en la pantalla? (se deja lugar para la barra de tareas / el Dock y la barra de título)
+#[cfg(desktop)]
 fn cabe(ancho: f64, alto: f64, pantalla: Option<(f64, f64)>) -> bool {
     match pantalla {
         Some((pw, ph)) => ancho <= pw - 20.0 && alto <= ph - 90.0,
@@ -119,6 +134,7 @@ fn cabe(ancho: f64, alto: f64, pantalla: Option<(f64, f64)>) -> bool {
 }
 
 /// Medida que tendrá el contenido: (ancho, alto, maximizada). Si el tamaño no cabe en la pantalla, se maximiza.
+#[cfg(desktop)]
 fn medida(tamano: &str, pantalla: Option<(f64, f64)>) -> (f64, f64, bool) {
     if let Some(t) = TAMANOS.iter().find(|x| x.0 == tamano) {
         if cabe(t.2, t.3, pantalla) {
@@ -132,11 +148,13 @@ fn medida(tamano: &str, pantalla: Option<(f64, f64)>) -> (f64, f64, bool) {
 }
 
 /// ¿Con este zoom el panel sigue en su diseño de computadora?
+#[cfg(desktop)]
 fn zoom_cabe(z: f64, ancho: f64, alto: f64) -> bool {
     ancho / z >= ANCHO_PC && alto / z >= ALTO_PC
 }
 
 /// El zoom pedido, o el más grande de la lista que no rompa el diseño (si ninguno cabe, el más pequeño).
+#[cfg(desktop)]
 fn zoom_seguro(pedido: f64, ancho: f64, alto: f64) -> f64 {
     ZOOMS
         .iter()
@@ -146,6 +164,29 @@ fn zoom_seguro(pedido: f64, ancho: f64, alto: f64) -> f64 {
         .unwrap_or(ZOOMS[0].0)
 }
 
+/// Android: una sola pantalla con el panel. Los enlaces de otros sitios (PayPal, WhatsApp, DGII…) van al navegador.
+#[cfg(mobile)]
+fn crear_ventana(app: &AppHandle, etiqueta: &str, url: WebviewUrl) -> tauri::Result<WebviewWindow> {
+    let host = Url::parse(&texto(&base(), "servidor", ""))
+        .ok()
+        .and_then(|u| u.host_str().map(|h| h.to_string()))
+        .unwrap_or_default();
+    let app_nav = app.clone();
+    let init = INIT.replace("__VERSION__", &app.package_info().version.to_string());
+    WebviewWindowBuilder::new(app, etiqueta, url)
+        .initialization_script(&init)
+        .on_navigation(move |u| {
+            if es_interna(u, &host) {
+                true
+            } else {
+                let _ = app_nav.opener().open_url(u.as_str(), None::<&str>);
+                false
+            }
+        })
+        .build()
+}
+
+#[cfg(desktop)]
 fn crear_ventana(app: &AppHandle, etiqueta: &str, url: WebviewUrl) -> tauri::Result<WebviewWindow> {
     let c = base();
     let host = Url::parse(&texto(&c, "servidor", ""))
@@ -210,11 +251,13 @@ fn es_interna(url: &Url, host: &str) -> bool {
     }
 }
 
+#[cfg(desktop)]
 fn ventana_principal(app: &AppHandle) -> Result<WebviewWindow, String> {
     app.get_webview_window("main").ok_or_else(|| "No se encontró la ventana de la app".to_string())
 }
 
 /// Lo que muestra la ventana de configuración: tamaños y zooms con cuáles caben en esta pantalla.
+#[cfg(desktop)]
 fn estado(app: &AppHandle) -> Value {
     let (tamano, zoom) = preferencias(app);
     let pantalla = app.get_webview_window("main").and_then(|w| pantalla_ventana(&w)).or_else(|| pantalla_app(app));
@@ -240,6 +283,7 @@ fn estado(app: &AppHandle) -> Value {
 }
 
 /// Pone el tamaño y el zoom en las ventanas abiertas (sin reiniciar la app).
+#[cfg(desktop)]
 fn poner(app: &AppHandle, tamano: &str, zoom: f64) -> Result<f64, String> {
     let w = ventana_principal(app)?;
     let pantalla = pantalla_ventana(&w);
@@ -273,11 +317,13 @@ fn leer_config(app: AppHandle) -> Value {
     })
 }
 
+#[cfg(desktop)]
 #[tauri::command]
 fn opciones(app: AppHandle) -> Value {
     estado(&app)
 }
 
+#[cfg(desktop)]
 #[tauri::command]
 fn aplicar(app: AppHandle, tamano: String, zoom: f64) -> Result<Value, String> {
     if !tamano_valido(&tamano) {
@@ -289,6 +335,7 @@ fn aplicar(app: AppHandle, tamano: String, zoom: f64) -> Result<Value, String> {
     Ok(estado(&app))
 }
 
+#[cfg(desktop)]
 #[tauri::command]
 fn restablecer(app: AppHandle) -> Result<Value, String> {
     if let Some(ruta) = ruta_config(&app) {
@@ -300,6 +347,7 @@ fn restablecer(app: AppHandle) -> Result<Value, String> {
 }
 
 // async: en Windows, crear una ventana desde un comando síncrono deja la app trabada
+#[cfg(desktop)]
 #[tauri::command]
 async fn abrir_config(app: AppHandle) -> Result<(), String> {
     if let Some(w) = app.get_webview_window("config") {
@@ -321,6 +369,7 @@ async fn abrir_config(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(desktop)]
 #[tauri::command]
 fn cerrar_config(app: AppHandle) {
     if let Some(w) = app.get_webview_window("config") {
@@ -328,11 +377,13 @@ fn cerrar_config(app: AppHandle) {
     }
 }
 
+#[cfg(desktop)]
 #[tauri::command]
 fn recargar(app: AppHandle) -> Result<(), String> {
     ventana_principal(&app)?.eval("location.reload()").map_err(|e| e.to_string())
 }
 
+#[cfg(desktop)]
 #[tauri::command]
 fn ir_inicio(app: AppHandle) -> Result<(), String> {
     // Vuelve a la pantalla de carga, que conecta con el servidor de fábrica
@@ -340,6 +391,7 @@ fn ir_inicio(app: AppHandle) -> Result<(), String> {
     ventana_principal(&app)?.eval(js).map_err(|e| e.to_string())
 }
 
+#[cfg(desktop)]
 #[tauri::command]
 fn abrir_descargas(app: AppHandle) -> Result<(), String> {
     let carpeta = app.path().download_dir().map_err(|e| e.to_string())?;
@@ -348,11 +400,29 @@ fn abrir_descargas(app: AppHandle) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+#[cfg(desktop)]
 #[tauri::command]
 fn imprimir(webview: tauri::Webview) -> Result<(), String> {
     webview.print().map_err(|e| e.to_string())
 }
 
+/// Android: los enlaces del panel se abren en la misma pantalla (init.js lo hace al recibir este error);
+/// los de otros sitios, en el navegador del teléfono.
+#[cfg(mobile)]
+#[tauri::command]
+async fn abrir_enlace(app: AppHandle, url: String) -> Result<(), String> {
+    let u = Url::parse(&url).map_err(|e| e.to_string())?;
+    let host = Url::parse(&texto(&base(), "servidor", ""))
+        .ok()
+        .and_then(|x| x.host_str().map(|h| h.to_string()))
+        .unwrap_or_default();
+    if es_interna(&u, &host) {
+        return Err("misma pantalla".into());
+    }
+    app.opener().open_url(u.as_str(), None::<&str>).map_err(|e| e.to_string())
+}
+
+#[cfg(desktop)]
 #[tauri::command]
 async fn abrir_enlace(app: AppHandle, url: String) -> Result<(), String> {
     let u = Url::parse(&url).map_err(|e| e.to_string())?;
@@ -377,21 +447,24 @@ async fn abrir_enlace(app: AppHandle, url: String) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![
-            leer_config,
-            opciones,
-            aplicar,
-            restablecer,
-            abrir_config,
-            cerrar_config,
-            recargar,
-            ir_inicio,
-            abrir_descargas,
-            imprimir,
-            abrir_enlace
-        ])
+    let builder = tauri::Builder::default().plugin(tauri_plugin_opener::init());
+    #[cfg(desktop)]
+    let builder = builder.invoke_handler(tauri::generate_handler![
+        leer_config,
+        opciones,
+        aplicar,
+        restablecer,
+        abrir_config,
+        cerrar_config,
+        recargar,
+        ir_inicio,
+        abrir_descargas,
+        imprimir,
+        abrir_enlace
+    ]);
+    #[cfg(mobile)]
+    let builder = builder.invoke_handler(tauri::generate_handler![leer_config, abrir_enlace]);
+    builder
         .setup(|app| {
             crear_ventana(app.handle(), "main", WebviewUrl::App("index.html".into()))?;
             Ok(())
