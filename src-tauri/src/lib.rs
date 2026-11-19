@@ -22,10 +22,16 @@ const BASE: &str = include_str!("../../app.json");
 const INIT: &str = include_str!("init.js");
 
 /// Tamaños de ventana permitidos: (código, nombre, ancho, alto). Además existe «maximizada».
+// 19-nov-2026: las resoluciones más comunes de computadora en las que el panel se ve en su diseño de PC (≥ 1120 × 660).
 const TAMANOS: &[(&str, &str, f64, f64)] = &[
+    ("hd", "HD · 1280 × 720", 1280.0, 720.0),
     ("compacta", "Compacta · 1280 × 800 (recomendada)", 1280.0, 800.0),
+    ("portatil", "Portátil · 1366 × 768", 1366.0, 768.0),
     ("mediana", "Mediana · 1440 × 900", 1440.0, 900.0),
+    ("portatil_grande", "Portátil grande · 1536 × 864", 1536.0, 864.0),
+    ("hd_plus", "HD+ · 1600 × 900", 1600.0, 900.0),
     ("grande", "Grande · 1600 × 1000", 1600.0, 1000.0),
+    ("full_hd", "Full HD · 1920 × 1080", 1920.0, 1080.0),
 ];
 /// Tamaño del contenido permitido (zoom de la página).
 const ZOOMS: &[(f64, &str)] = &[(0.9, "Pequeño · 90 %"), (1.0, "Normal · 100 %"), (1.1, "Grande · 110 %")];
@@ -275,6 +281,7 @@ fn estado(app: &AppHandle) -> Value {
         "tamano": tamano,
         "zoom": zoom_seguro(zoom, ancho, alto),
         "tamano_fabrica": tamano_fabrica(),
+        "guardado": ruta_config(app).map(|p| p.exists()).unwrap_or(false),
         "tamanos": tamanos,
         "zooms": zooms,
         "version": app.package_info().version.to_string(),
