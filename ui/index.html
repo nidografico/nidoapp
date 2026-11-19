@@ -52,14 +52,14 @@ button { border: 0; border-radius: 12px; padding: 12px 20px; font: inherit; font
             });
     }
     document.getElementById('reintentar').onclick = function () { espera = 3000; probar(); };
-    document.getElementById('ajustes').onclick = function () { location.href = 'config.html'; };
+    document.getElementById('ajustes').onclick = function () { invocar('abrir_config').catch(function () {}); };
     invocar('leer_config').then(function (c) {
         cfg = c || {};
         document.title = cfg.nombre || 'Nido Gráfico';
         document.getElementById('nombre').textContent = cfg.nombre || 'Nido Gráfico';
         if (cfg.color_fondo) document.documentElement.style.setProperty('--fondo', cfg.color_fondo);
         if (cfg.color_texto) document.documentElement.style.setProperty('--texto', cfg.color_texto);
-        if (!cfg.servidor) { location.href = 'config.html'; return; }
+        if (!cfg.servidor) { document.getElementById('cargando').innerHTML = '<p>Esta app no tiene la dirección del panel. Pide al administrador una versión nueva.</p>'; return; }
         probar();
     }).catch(function () { document.getElementById('cargando').innerHTML = '<p>No se pudo leer la configuración de la app.</p>'; });
 })();
