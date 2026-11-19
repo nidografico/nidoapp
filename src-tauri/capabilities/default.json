@@ -15,6 +15,17 @@
     },
     "permissions": [
         "core:default",
-        "opener:default"
+        "opener:default",
+        "allow-leer-config",
+        "allow-opciones",
+        "allow-aplicar",
+        "allow-restablecer",
+        "allow-abrir-config",
+        "allow-cerrar-config",
+        "allow-recargar",
+        "allow-ir-inicio",
+        "allow-abrir-descargas",
+        "allow-imprimir",
+        "allow-abrir-enlace"
     ]
 }
