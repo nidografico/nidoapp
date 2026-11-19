@@ -2,8 +2,9 @@
 (function () {
     if (window.__nidoAppIniciada) return;
     window.__nidoAppIniciada = true;
-    // El panel lo usa para mostrar el engranaje al SuperUser (app/escritorio/engranaje.php)
-    window.NIDO_APP = { version: '__VERSION__', mac: navigator.userAgent.indexOf('Mac') !== -1 };
+    // El panel lo usa para mostrar el engranaje (app/escritorio/engranaje.php). config: 2 = ventana de configuración
+    // pública (sin PIN, comando abrir_config); las apps viejas no lo traen y ahí el engranaje sigue solo para el SuperUser.
+    window.NIDO_APP = { version: '__VERSION__', mac: navigator.userAgent.indexOf('Mac') !== -1, config: 2 };
     function invocar(cmd, args) {
         try { return window.__TAURI_INTERNALS__.invoke(cmd, args || {}); } catch (e) { return Promise.reject(e); }
     }
