@@ -4,7 +4,8 @@
     "description": "Ventanas de la app",
     "windows": [
         "main",
-        "v-*"
+        "v-*",
+        "config"
     ],
     "remote": {
         "urls": [
