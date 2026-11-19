@@ -29,4 +29,34 @@
         e.preventDefault();
         window.open(a.href);
     }, true);
+    // «← Volver» (19-nov-2026, pedido de Erick): en pantallas sueltas del servidor (imprimir factura, ticket…) no había cómo
+    // volver al panel. Sale abajo a la izquierda si la pantalla no es el panel y no tiene ya su propio «Volver»; no se imprime.
+    // (El servidor pone el mismo botón en las pantallas de impresión para las apps viejas: app/sistema/app-volver.php, id #nidoVolver.)
+    function ponerVolver() {
+        if (location.protocol === 'tauri:' || location.hostname === 'tauri.localhost' || !document.body || document.getElementById('nidoVolver')) return;
+        if (/\/(dashboard|cpanel|login|index)\.php$|\/app\/?$/i.test(location.pathname)) return;
+        var ya = document.querySelector('.e1-nav-back, [data-volver], [onclick*="history.back"]');
+        if (!ya) {
+            ya = Array.prototype.some.call(document.querySelectorAll('a, button'), function (el) {
+                return /^\s*(←\s*)?volver\b/i.test(el.textContent || '') && el.offsetParent !== null;
+            });
+        }
+        if (ya) return;
+        var st = document.createElement('style');
+        st.textContent = '#nidoVolver{position:fixed;left:16px;bottom:16px;z-index:99985;display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border:0;'
+            + 'border-radius:999px;background:#101828;color:#fff;font:600 14px system-ui,-apple-system,"Segoe UI",sans-serif;cursor:pointer;'
+            + 'box-shadow:0 8px 20px rgba(16,24,40,.3)} print{#nidoVolver{display:none!important}}';
+        document.head.appendChild(st);
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.id = 'nidoVolver';
+        b.innerHTML = '&#8592; Volver';
+        b.onclick = function () {
+            if (history.length > 1) { history.back(); return; }
+            var m = location.pathname.match(/^(.*\/app)(?:\/|$)/i);
+            location.href = (m ? m[1] : '') + '/dashboard.php';
+        };
+        document.body.appendChild(b);
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ponerVolver); else ponerVolver();
 })();
