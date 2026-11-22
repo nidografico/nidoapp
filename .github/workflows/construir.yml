@@ -10,6 +10,10 @@ on:
         description: Construir Android (si / no)
         required: false
         default: 'no'
+      escritorio:
+        description: Construir Windows y Mac (si / no). «no» = solo Android
+        required: false
+        default: 'si'
 permissions:
   contents: write
 jobs:
@@ -23,6 +27,7 @@ jobs:
           body: Instaladores generados desde el cPanel.
   construir:
     needs: release
+    if: ${{ inputs.escritorio != 'no' }}
     strategy:
       fail-fast: false
       matrix:
@@ -73,12 +78,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+      # 22-nov-2026: sin paquetes por defecto (el paquete «tools» ya no existe y el paso fallaba); los necesarios van abajo
       - uses: android-actions/setup-android@v3
+        with:
+          packages: ''
       - name: Herramientas de Android
         run: sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;27.0.12077973"
       - uses: dtolnay/rust-toolchain@stable
