@@ -225,15 +225,30 @@ fn crear_ventana(app: &AppHandle, etiqueta: &str, url: WebviewUrl) -> tauri::Res
                 false
             }
         })
-        .on_download(move |_webview, evento| {
-            if let DownloadEvent::Requested { destination, .. } = evento {
-                if let Ok(carpeta) = app_dl.path().download_dir() {
-                    let nombre = destination
-                        .file_name()
-                        .map(|n| n.to_os_string())
-                        .unwrap_or_else(|| "descarga".into());
-                    *destination = carpeta.join(nombre);
+        .on_download(move |webview, evento| {
+            match evento {
+                DownloadEvent::Requested { destination, .. } => {
+                    if let Ok(carpeta) = app_dl.path().download_dir() {
+                        let nombre = destination
+                            .file_name()
+                            .map(|n| n.to_os_string())
+                            .unwrap_or_else(|| "descarga".into());
+                        *destination = carpeta.join(nombre);
+                    }
                 }
+                // 22-nov-2026 (pedido de Erick): al terminar, la página muestra dónde quedó el archivo (init.js → nidoDescargaLista)
+                DownloadEvent::Finished { path, success, .. } => {
+                    let ruta = path
+                        .map(|p| p.to_string_lossy().to_string())
+                        .unwrap_or_default();
+                    let js = format!(
+                        "window.nidoDescargaLista && window.nidoDescargaLista({}, {})",
+                        serde_json::to_string(&ruta).unwrap_or_else(|_| "\"\"".into()),
+                        success
+                    );
+                    let _ = webview.eval(&js);
+                }
+                _ => {}
             }
             true
         })
