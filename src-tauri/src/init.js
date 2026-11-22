@@ -10,6 +10,24 @@
     function invocar(cmd, args) {
         try { return window.__TAURI_INTERNALS__.invoke(cmd, args || {}); } catch (e) { return Promise.reject(e); }
     }
+    // 22-nov-2026 (pedido de Erick): aviso al terminar cada descarga con la carpeta donde quedó (lo llama lib.rs → on_download)
+    window.nidoDescargaLista = function (ruta, ok) {
+        var nombre = String(ruta || '').split(/[\\/]/).pop();
+        var titulo = ok ? 'Descarga lista' : 'La descarga no se completó';
+        var texto = ok ? (nombre ? nombre + ' se guardó en:' : 'El archivo se guardó en:') : 'Intenta otra vez.';
+        if (typeof window.showEstiloAlerta === 'function') {
+            window.showEstiloAlerta({
+                variant: ok ? 'success' : 'error', icon: ok ? 'bi-download' : 'bi-x-circle', title: titulo, message: texto,
+                bodyHtml: ok && ruta ? '<p style="margin:8px 0 0;padding:10px 12px;border-radius:12px;background:rgba(127,127,127,.12);font:13px ui-monospace,Menlo,monospace;word-break:break-all;text-align:left">'
+                    + String(ruta).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }) + '</p>' : '',
+                confirmText: ok && !android ? 'Abrir carpeta' : 'Listo',
+                secondaryText: ok && !android ? 'Cerrar' : '',
+                onConfirm: function () { if (ok && !android) invocar('abrir_descargas').catch(function () {}); }
+            });
+        } else {
+            window.alert(titulo + '\n' + texto + (ok && ruta ? '\n' + ruta : ''));
+        }
+    };
     // Mac: WKWebView no imprime con window.print(); se abre el diálogo nativo
     if (window.NIDO_APP.mac) {
         window.print = function () { invocar('imprimir').catch(function () {}); };
