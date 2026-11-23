@@ -26,6 +26,12 @@
         "allow-ir-inicio",
         "allow-abrir-descargas",
         "allow-imprimir",
-        "allow-abrir-enlace"
+        "allow-abrir-enlace",
+        "allow-abrir-asistente",
+        "allow-ia-estado",
+        "allow-ia-chat",
+        "allow-ia-guardar",
+        "allow-ia-descargar",
+        "allow-ia-instalar-ollama"
     ]
 }
