@@ -10,6 +10,15 @@
     function invocar(cmd, args) {
         try { return window.__TAURI_INTERNALS__.invoke(cmd, args || {}); } catch (e) { return Promise.reject(e); }
     }
+    // 22-nov-2026: asistente local (Ollama en esta computadora). Lo usa el agente del panel (app/sistema/agente-widget.php).
+    if (!android) {
+        window.NIDO_APP.ia = 1;
+        window.nidoIa = {
+            estado: function () { return invocar('ia_estado'); },
+            chat: function (cuerpo) { return invocar('ia_chat', { cuerpo: cuerpo }); },
+            configurar: function () { return invocar('abrir_asistente'); }
+        };
+    }
     // 22-nov-2026 (pedido de Erick): aviso al terminar cada descarga con la carpeta donde quedó (lo llama lib.rs → on_download)
     window.nidoDescargaLista = function (ruta, ok) {
         var nombre = String(ruta || '').split(/[\\/]/).pop();
