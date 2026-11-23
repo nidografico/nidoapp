@@ -13,6 +13,13 @@ const COMANDOS: &[&str] = &[
     "abrir_descargas",
     "imprimir",
     "abrir_enlace",
+    // 22-nov-2026: asistente local (src/ia.rs)
+    "abrir_asistente",
+    "ia_estado",
+    "ia_chat",
+    "ia_guardar",
+    "ia_descargar",
+    "ia_instalar_ollama",
 ];
 
 fn main() {
