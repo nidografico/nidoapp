@@ -18,6 +18,8 @@ use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBui
 use tauri::{webview::DownloadEvent, LogicalSize};
 use tauri_plugin_opener::OpenerExt;
 
+mod ia; // 22-nov-2026: asistente local (Ollama) — ver src/ia.rs
+
 const BASE: &str = include_str!("../../app.json");
 const INIT: &str = include_str!("init.js");
 
@@ -391,6 +393,17 @@ async fn abrir_config(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Abre la configuración directo en «Asistente local» (lo llama el agente del panel y la primera vez que se abre la app)
+#[cfg(desktop)]
+#[tauri::command]
+async fn abrir_asistente(app: AppHandle) -> Result<(), String> {
+    ia::ENFOCAR_IA.store(true, std::sync::atomic::Ordering::SeqCst);
+    if let Some(w) = app.get_webview_window("config") {
+        let _ = w.eval("window.iaEnfocar && window.iaEnfocar()");
+    }
+    abrir_config(app).await
+}
+
 #[cfg(desktop)]
 #[tauri::command]
 fn cerrar_config(app: AppHandle) {
@@ -482,13 +495,31 @@ pub fn run() {
         ir_inicio,
         abrir_descargas,
         imprimir,
-        abrir_enlace
+        abrir_enlace,
+        abrir_asistente,
+        ia::ia_estado,
+        ia::ia_chat,
+        ia::ia_guardar,
+        ia::ia_descargar,
+        ia::ia_instalar_ollama
     ]);
     #[cfg(mobile)]
     let builder = builder.invoke_handler(tauri::generate_handler![leer_config, abrir_enlace]);
     builder
         .setup(|app| {
             crear_ventana(app.handle(), "main", WebviewUrl::App("index.html".into()))?;
+            // Primera vez en esta computadora: a los pocos segundos se abre el asistente local para instalarlo (una sola vez)
+            #[cfg(desktop)]
+            {
+                let h = app.handle().clone();
+                if !ia::existe_config(&h) {
+                    let _ = ia::guardar_json(&h, &serde_json::json!({ "modelo": "", "activo": false, "visto": true }));
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_secs(6));
+                        let _ = tauri::async_runtime::block_on(abrir_asistente(h));
+                    });
+                }
+            }
             Ok(())
         })
         .run(tauri::generate_context!())
