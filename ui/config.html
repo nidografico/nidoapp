@@ -43,6 +43,14 @@ h2 { margin: 0; font-size: 14px; }
 .msg { padding: 10px 12px; border-radius: 10px; font-size: 13px; }
 .msg.bien { background: #ecfdf3; color: var(--ok); } .msg.mal { background: #fef3f2; color: var(--mal); }
 [hidden] { display: none !important; }
+.ia-paso { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--suave); font-size: 13px; }
+.ia-paso b { flex: 1; } .ia-paso .ok { color: var(--ok); } .ia-paso .no { color: var(--mal); }
+.ia-paso button { border: 1px solid var(--linea); background: #fff; border-radius: 10px; padding: 7px 10px; font: inherit; font-weight: 600; cursor: pointer; color: inherit; }
+.ia-barra { position: relative; height: 26px; border-radius: 99px; background: var(--suave); overflow: hidden; }
+.ia-barra i { position: absolute; inset: 0 auto 0 0; width: 0; background: linear-gradient(90deg, #12b76a, #32d583); transition: width .3s; }
+.ia-barra span { position: relative; display: block; text-align: center; font-size: 12px; line-height: 26px; font-weight: 700; }
+.op .ia-tag { margin-left: auto; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: #ecfdf3; color: var(--ok); }
+#ia.enfoque { box-shadow: 0 0 0 3px #12b76a; }
 @media (prefers-color-scheme: dark) {
     :root { --tinta: #f2f4f7; --sub: #98a2b3; --linea: rgba(255,255,255,.1); --suave: rgba(255,255,255,.06); --fondo: #0e1116; }
     section, .op, .herr button, .pie button { background: #161b22; }
@@ -58,6 +66,15 @@ h2 { margin: 0; font-size: 14px; }
         <span class="ico">⚙</span>
         <div><h1>Configuración de la app</h1><p><span id="nombre">Nido Gráfico</span> · versión <span id="ver">—</span> · se guarda en esta computadora</p></div>
     </header>
+
+    <section id="ia">
+        <h2>🤖 Asistente local (gratis)</h2>
+        <p class="nota">El agente del panel responde con los datos de tu empresa usando una IA que corre en <b>esta computadora</b> (Ollama). Sin costo y sin enviar tus datos a terceros.</p>
+        <div class="ia-paso" id="iaOllama"></div>
+        <div id="iaModelos" class="ops"></div>
+        <div class="ia-barra" id="iaBarra" hidden><i id="iaBarraIn"></i><span id="iaBarraTx"></span></div>
+        <div class="herr" id="iaAcciones"></div>
+    </section>
 
     <section>
         <h2>Tamaño de la ventana</h2>
@@ -136,6 +153,67 @@ h2 { margin: 0; font-size: 14px; }
     $('cerrar').onclick = function () { invocar('cerrar_config').catch(function () { window.close(); }); };
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') $('cerrar').click(); });
     invocar('opciones').then(pintar).catch(function (e) { aviso('No se pudo leer la configuración: ' + e); });
+
+    /* ── Asistente local (22-nov-2026): Ollama + modelo elegido. Comandos en src-tauri/src/ia.rs ── */
+    var ia = null, iaElegido = '', iaOcupado = false;
+    function gb(n) { return n ? (n / 1073741824).toFixed(2) + ' GB' : ''; }
+    function iaPintar(e) {
+        ia = e;
+        if (!iaElegido) iaElegido = e.modelo || 'qwen2.5:3b';
+        var p = $('iaOllama');
+        p.innerHTML = e.ollama
+            ? '<span class="ok">●</span><b>Ollama está instalado y funcionando</b><button type="button" id="iaRevisar">Revisar</button>'
+            : '<span class="no">●</span><b>Paso 1: instala Ollama (gratis)</b><button type="button" id="iaInstalar">' + (e.so === 'windows' ? 'Instalar Ollama' : 'Descargar Ollama') + '</button><button type="button" id="iaRevisar">Ya lo instalé</button>';
+        var lm = $('iaModelos'); lm.innerHTML = '';
+        e.modelos.forEach(function (m) {
+            var tiene = (e.instalados || []).indexOf(m.id) >= 0;
+            lm.appendChild(boton('', m.id === iaElegido, e.ollama, '<span><b>' + esc(m.nombre) + '</b> · ' + esc(m.detalle) + '</span>' + (tiene ? '<span class="ia-tag">instalado</span>' : ''), function () { iaElegido = m.id; iaPintar(ia); }));
+        });
+        var tieneElegido = (e.instalados || []).indexOf(iaElegido) >= 0;
+        var acc = $('iaAcciones'); acc.innerHTML = '';
+        if (e.ollama && !tieneElegido) acc.innerHTML = '<button type="button" id="iaBajar"><i>⬇</i>Paso 2: descargar y activar</button>';
+        if (e.ollama && tieneElegido) acc.innerHTML = (e.listo && e.modelo === iaElegido
+            ? '<button type="button" id="iaApagar"><i>⏻</i>Apagar el asistente</button><button type="button" disabled><i>✓</i>Activo: ' + esc(iaElegido) + '</button>'
+            : '<button type="button" id="iaActivar"><i>✓</i>Activar este modelo</button>');
+        var on = function (id, fn) { var b = $(id); if (b) b.onclick = fn; };
+        on('iaRevisar', iaCargar);
+        on('iaInstalar', function () {
+            invocar('ia_instalar_ollama').then(function (r) {
+                aviso(r === 'navegador' ? 'Se abrió la página de Ollama: descárgalo, instálalo y luego toca «Ya lo instalé».' : 'Bajando el instalador de Ollama…', true);
+            }).catch(function (x) { aviso(String(x)); });
+        });
+        on('iaBajar', function () {
+            if (iaOcupado) return;
+            iaOcupado = true;
+            $('iaBarra').hidden = false; $('iaBarraIn').style.width = '0'; $('iaBarraTx').textContent = 'Preparando la descarga…';
+            invocar('ia_descargar', { modelo: iaElegido }).catch(function (x) { iaOcupado = false; aviso(String(x)); });
+        });
+        on('iaActivar', function () { invocar('ia_guardar', { modelo: iaElegido, activo: true }).then(function () { aviso('Listo: el agente del panel ya usa el asistente local.', true); iaCargar(); }).catch(function (x) { aviso(String(x)); }); });
+        on('iaApagar', function () { invocar('ia_guardar', { modelo: iaElegido, activo: false }).then(function () { aviso('Asistente local apagado: el agente responde como siempre.', true); iaCargar(); }).catch(function (x) { aviso(String(x)); }); });
+        if (e.enfocar) window.iaEnfocar();
+    }
+    window.iaEnfocar = function () {
+        var sec = $('ia'); sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        sec.classList.add('enfoque'); setTimeout(function () { sec.classList.remove('enfoque'); }, 2200);
+    };
+    // Progreso que avisa ia.rs (descarga del modelo o del instalador de Ollama)
+    window.iaProgreso = function (p) {
+        $('iaBarra').hidden = false;
+        if (p.fin) {
+            iaOcupado = false;
+            if (p.ok && p.instalador) { $('iaBarraTx').textContent = 'Instalador abierto: sigue sus pasos y luego toca «Ya lo instalé»'; $('iaBarraIn').style.width = '100%'; return; }
+            if (p.ok) {
+                $('iaBarraIn').style.width = '100%'; $('iaBarraTx').textContent = 'Modelo listo ✓';
+                invocar('ia_guardar', { modelo: iaElegido, activo: true }).then(function () { aviso('¡Listo! El agente del panel ya usa el asistente local.', true); iaCargar(); });
+            } else { $('iaBarraTx').textContent = 'No se completó'; aviso(String(p.error || 'No se pudo completar. Revisa tu internet e intenta otra vez.')); }
+            return;
+        }
+        var pct = p.total ? Math.round(p.hecho / p.total * 100) : 0;
+        $('iaBarraIn').style.width = pct + '%';
+        $('iaBarraTx').textContent = (p.total ? pct + '% · ' + gb(p.hecho) + ' de ' + gb(p.total) : '') + (p.estado ? ' · ' + p.estado : '');
+    };
+    function iaCargar() { invocar('ia_estado').then(iaPintar).catch(function (x) { $('iaOllama').textContent = 'No se pudo revisar el asistente: ' + x; }); }
+    iaCargar();
 })();
 </script>
 </body>
