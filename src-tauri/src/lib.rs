@@ -184,7 +184,7 @@ fn crear_ventana(app: &AppHandle, etiqueta: &str, url: WebviewUrl) -> tauri::Res
     WebviewWindowBuilder::new(app, etiqueta, url)
         .initialization_script(&init)
         .on_navigation(move |u| {
-            if es_interna(u, &host) {
+            if es_interna(u, &host) || es_verificacion(u) {
                 true
             } else {
                 let _ = app_nav.opener().open_url(u.as_str(), None::<&str>);
@@ -220,7 +220,7 @@ fn crear_ventana(app: &AppHandle, etiqueta: &str, url: WebviewUrl) -> tauri::Res
         .maximized(maximizada)
         .initialization_script(&init)
         .on_navigation(move |u| {
-            if es_interna(u, &host) {
+            if es_interna(u, &host) || es_verificacion(u) {
                 true
             } else {
                 let _ = app_nav.opener().open_url(u.as_str(), None::<&str>);
@@ -260,6 +260,23 @@ fn crear_ventana(app: &AppHandle, etiqueta: &str, url: WebviewUrl) -> tauri::Res
 }
 
 /// ¿Se queda dentro de la app? Páginas propias de la app y el servidor (y sus subdominios).
+/// 24-nov-2026: la verificación anti-robots del hosting (Imunify360 / InterShield) puede pedir un captcha que se carga
+/// desde estos servicios. Si se mandaban al navegador, la pantalla «Espere mientras se verifica su solicitud…» quedaba
+/// esperando para siempre dentro de la app. Solo se permiten estas direcciones de captcha, nada más.
+fn es_verificacion(url: &Url) -> bool {
+    if url.scheme() != "https" {
+        return false;
+    }
+    let h = url.host_str().unwrap_or("");
+    let p = url.path();
+    match h {
+        "www.google.com" | "www.recaptcha.net" => p.starts_with("/recaptcha/"),
+        "www.gstatic.com" => p.starts_with("/recaptcha/"),
+        "challenges.cloudflare.com" => true,
+        _ => h == "hcaptcha.com" || h.ends_with(".hcaptcha.com"),
+    }
+}
+
 fn es_interna(url: &Url, host: &str) -> bool {
     match url.scheme() {
         "tauri" | "data" | "blob" | "about" | "asset" => true,
