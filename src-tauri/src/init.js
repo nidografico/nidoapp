@@ -19,6 +19,29 @@
             configurar: function () { return invocar('abrir_asistente'); }
         };
     }
+    // 24-nov-2026: si la pantalla anti-robots del hosting («Espere mientras se verifica su solicitud…») no avanza en 25 s,
+    // se explica qué pasa y se ofrece reintentar (antes se quedaba cargando sin decir nada)
+    (function () {
+        function revisar() {
+            var t = ((document.title || '') + ' ' + (document.body ? document.body.innerText.slice(0, 400) : '')).toLowerCase();
+            if (!/verifica su solicitud|verifying your request|checking your browser|verificando|just a moment/.test(t)) return;
+            setTimeout(function () {
+                var t2 = ((document.title || '') + ' ' + (document.body ? document.body.innerText.slice(0, 400) : '')).toLowerCase();
+                if (!/verifica su solicitud|verifying your request|checking your browser|verificando|just a moment/.test(t2) || document.getElementById('nidoVerifica')) return;
+                var d = document.createElement('div');
+                d.id = 'nidoVerifica';
+                d.setAttribute('style', 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2147483647;max-width:min(520px,calc(100vw - 32px));'
+                    + 'padding:16px 18px;border-radius:14px;background:#111;color:#f2f4f7;font:14px/1.5 system-ui,-apple-system,sans-serif;box-shadow:0 18px 40px rgba(0,0,0,.45);text-align:left');
+                d.innerHTML = '<strong style="display:block;margin-bottom:4px">La protección del hosting está revisando esta conexión</strong>'
+                    + 'Si no avanza, el firewall del hosting puede estar frenando la red de esta computadora (por ejemplo, después de muchas consultas seguidas). '
+                    + 'Espera unos minutos y reintenta, prueba con otra red, o pide a tu hosting que permita esta IP.'
+                    + '<div style="margin-top:12px;text-align:right"><button type="button" style="font:600 13px system-ui;padding:8px 14px;border-radius:9px;border:0;background:#f2f4f7;color:#111;cursor:pointer">Reintentar</button></div>';
+                d.querySelector('button').addEventListener('click', function () { location.reload(); });
+                document.body.appendChild(d);
+            }, 25000);
+        }
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', revisar); else revisar();
+    })();
     // 22-nov-2026 (pedido de Erick): aviso al terminar cada descarga con la carpeta donde quedó (lo llama lib.rs → on_download)
     window.nidoDescargaLista = function (ruta, ok) {
         var nombre = String(ruta || '').split(/[\\/]/).pop();
